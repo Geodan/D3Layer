@@ -6,7 +6,26 @@ d3.selection.prototype.moveToFront = function() {
   this.parentNode.appendChild(this);
   });
 };
-function d3layer(layername, config){
+
+window.d3l = function(){
+    var _layers = [];
+    /** Create a new layer **/
+    this.layers = function(layername, config){
+        switch(arguments.length) {
+            case 0:
+                return _layers;
+            default:
+                $.each(_layers,function(i,layer){
+                    if (layer.layername == layername){
+                        return layer;  
+                    }
+                });
+                var layer = new d3layer(layername, config);
+                return layer;
+        }
+    }
+
+    var d3layer = function(layername, config){
 		var f = {}, bounds, feature, collection;
 		this.f = f;
 		var _this = this;        
@@ -455,3 +474,4 @@ function d3layer(layername, config){
 		
 		return f;
 	}
+};
