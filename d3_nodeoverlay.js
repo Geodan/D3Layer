@@ -35,7 +35,7 @@ function nodeOverlay(svg,w,h) {
         }
     };     
         
-    
+    //TODO: move this to a seperate (onclick) function 
     var routing = function(d){
         //TODO: fetch routing information
         var fromcoordx = d.source.xcoord;
@@ -70,7 +70,7 @@ function nodeOverlay(svg,w,h) {
     // Toggle children on click.
     var click = function(d) {
         if (d.active){ //toggle OFF
-            
+            //TODO: move out of overlay object
             routefeats = {"type": "FeatureCollection","features":[]};
             routelayer.data(routefeats);
             d.active = false;
@@ -88,6 +88,7 @@ function nodeOverlay(svg,w,h) {
             //if (d.groep == 'mdw') color = 'orange';
             //d3.selectAll('.link'+d.id)
             //    .style('stroke',color)
+            //TODO: move out of overlay object
             d3.selectAll('.link'+d.id)
                 .each(routing);
         }

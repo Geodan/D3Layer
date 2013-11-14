@@ -7,20 +7,69 @@ d3.selection.prototype.moveToFront = function() {
   });
 };
 
-window.d3l = function(){
-    var _layers = [];
+window.d3l = function(config){
+    var self = this;
+    this.map = config.map;
+    this.maptype = config.maptype;
+    if (config.maptype == 'OpenLayers'){//Getting the correct OpenLayers SVG. 
+        var div = d3.selectAll("#" + config.divid);
+        div.attr("z-index",10001);
+        div.selectAll("svg").remove();
+        this.svg = div.append("svg");
+    }
+    else if (config.maptype == 'Leaflet') { //Leaflet does it easier
+        /* Initialize the SVG layer */
+        this.map._initPathRoot();
+        //var svg = d3.select(this.map.getPanes().overlayPane).append("svg"),
+        this.svg = d3.select("#map").select("svg");
+    }
+    else if (config.maptype == 'D3') {
+        this.svg = this.map; 
+    }
+    
+    
+    this._layers = [];
+    var _legend;
+    
+    /** Create a legend **/
+    this.legend = function(config){
+        switch(arguments.length) {
+            case 0:
+                return _legend;
+            default:
+                var legenditems = d3.select(config.legendid).selectAll('layer').data(this._layers);
+                legenditems.enter()
+                    .append('div')
+                    .classed('layer',true)
+                    .html(function(d){
+                        return d.layername;
+                    });
+                 legenditems.each(function(d){
+                 });
+        }
+    }
+    /** Get current zoomlevel **/
+    this.getZoomLevel = function(){
+        var zoomleven = 0;
+        if (self.maptype == 'Leaflet') {
+            zoomlevel = self.map.getZoom();
+        }
+        return zoomlevel;
+    }
+    
     /** Create a new layer **/
     this.layers = function(layername, config){
         switch(arguments.length) {
             case 0:
-                return _layers;
+                return this._layers;
             default:
-                $.each(_layers,function(i,layer){
+                $.each(this._layers,function(i,layer){
                     if (layer.layername == layername){
                         return layer;  
                     }
                 });
                 var layer = new d3layer(layername, config);
+                this._layers.push(layer);
                 return layer;
         }
     }
@@ -33,7 +82,7 @@ window.d3l = function(){
 		f.layername = layername;
 		this.data;
 		this.type = config.type || "path";
-		this.map = config.map;
+		
 		this.style = config.style;
 		this.onClick = config.onClick;
 		this.onMouseover = config.onMouseover;
@@ -65,22 +114,14 @@ window.d3l = function(){
         }
 
         
-		if (config.maptype == 'OpenLayers'){//Getting the correct OpenLayers SVG. 
-			var div = d3.selectAll("#" + config.divid);
-			div.attr("z-index",10001);
-			div.selectAll("svg").remove();
-			var svg = div.append("svg");
-			g = svg.append("g");
+		if (self.maptype == 'OpenLayers'){//Getting the correct OpenLayers SVG. 
+			g = self.svg.append("g");
 		}
-		else if (config.maptype == 'Leaflet') { //Leaflet does it easier
-			/* Initialize the SVG layer */
-			this.map._initPathRoot();
-			//var svg = d3.select(this.map.getPanes().overlayPane).append("svg"),
-			var svg = d3.select("#map").select("svg");
-			g = svg.append("g").attr("class", "leaflet-zoom-hide");
+		else if (self.maptype == 'Leaflet') { //Leaflet does it easier
+			g = self.svg.append("g").attr("class", "leaflet-zoom-hide");
 		}
-		else if (config.maptype == 'D3') {
-		    var svg = this.map; 
+		else if (self.maptype == 'D3') {
+		     
 		}
 
 		this.g = g;
@@ -98,20 +139,20 @@ window.d3l = function(){
             
         // Projecting latlon to screen coordinates
 		this.project = function(x) {
-		  if (config.maptype == 'D3') {
+		  if (self.maptype == 'D3') {
 		    var point = projection(x);
 		    return [point[0],point[1]];
 		  }
-		  else if (config.maptype == 'Leaflet'){
-	  	      var point = _this.map.latLngToLayerPoint(new L.LatLng(x[1], x[0])); //Leaflet version
+		  else if (self.maptype == 'Leaflet'){
+	  	      var point = self.map.latLngToLayerPoint(new L.LatLng(x[1], x[0])); //Leaflet version
 		  	  //var point = _this.map.latLngToContainerPoint(new L.LatLng(x[1], x[0])); //Leaflet version
 		  }
-		  else if (config.maptype == 'OpenLayers'){
+		  else if (self.maptype == 'OpenLayers'){
 		  	  var loc =  new OpenLayers.LonLat(x[0],x[1]);
 		  	  var fromproj = new OpenLayers.Projection("EPSG:4326");
 		  	  var toproj = new OpenLayers.Projection("EPSG:900913");
 		  	  loc.transform(fromproj, toproj);
-		  	  var point = _this.map.getViewPortPxFromLonLat(loc); //OpenLayers version
+		  	  var point = self.map.getViewPortPxFromLonLat(loc); //OpenLayers version
 		  }
 		  else {
 		  	  console.warn("Error, no correct maptype specified for d3 layer " + layername);
@@ -422,7 +463,7 @@ window.d3l = function(){
         
         //Redraw all features
 		f.reset = function(e) {
-			if (config.maptype == 'OpenLayers'){
+			if (self.maptype == 'OpenLayers'){
                 var extent = _this.map.getExtent();
                 bottomLeft = olextentproject([extent.left,extent.bottom]);
                 topRight = olextentproject([extent.right,extent.top]);
@@ -466,12 +507,30 @@ window.d3l = function(){
                             .attr("y", _this.textLocation(d)[1] )
                             .text(labelgenerator(d));
                     }
+                    entity.select('g.zoomable')
+                        .attr("transform", function(d){
+                            if (d.geometry.type == 'Point'){
+                                var x = _this.project(d.geometry.coordinates)[0];
+                                var y = _this.project(d.geometry.coordinates)[1];
+                            }
+                            else {
+                                var x = _this.geoPath.centroid(d)[0];
+                                var y = _this.geoPath.centroid(d)[1];
+                            }
+                            return "translate(" + x + "," + y + ")"
+                        })
+                        .transition().duration(500)
+                        .attr('opacity',function(d){
+                                if (d.minzoomlevel && d.minzoomlevel > self.getZoomLevel()){
+                                    return 0;
+                                }
+                                else return 1;
+                        });
+                    
+                    
                 });
 		}
 		f.reset();
-		
-		
-		
 		return f;
 	}
 };
