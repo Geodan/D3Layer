@@ -9,8 +9,11 @@ d3.selection.prototype.moveToFront = function() {
 
 window.d3l = function(config){
     var self = this;
-    this.map = config.map;
-    this.maptype = config.maptype;
+    var map = config.map;
+    var maptype = config.maptype;
+    var _layers = [];
+    var _legend;
+    
     if (config.maptype == 'OpenLayers'){//Getting the correct OpenLayers SVG. 
         var div = d3.selectAll("#" + config.divid);
         div.attr("z-index",10001);
@@ -19,7 +22,7 @@ window.d3l = function(config){
     }
     else if (config.maptype == 'Leaflet') { //Leaflet does it easier
         /* Initialize the SVG layer */
-        this.map._initPathRoot();
+        map._initPathRoot();
         //var svg = d3.select(this.map.getPanes().overlayPane).append("svg"),
         this.svg = d3.select("#map").select("svg");
     }
@@ -27,33 +30,58 @@ window.d3l = function(config){
         this.svg = this.map; 
     }
     
-    
-    this._layers = [];
-    var _legend;
-    
     /** Create a legend **/
     this.legend = function(config){
         switch(arguments.length) {
             case 0:
                 return _legend;
             default:
-                var legenditems = d3.select(config.legendid).selectAll('.layer').data(this._layers);
-                legenditems.enter()
+                var legenditems = d3.select(config.legendid).selectAll('.layer').data(_layers);
+                var itementer = legenditems.enter()
                     .append('div')
-                    .classed('layer',true)
+                    .classed('layer',true);
+                 itementer.append('span')
                     .html(function(d){
-                        return d.layername;
+                        return '<h3>' + d.layername + '</h3>';
                     });
+                 itementer.append('div')
+                    .classed('numfeats',true)
+                    ;
+                  itementer.append('div')
+                    .classed('styles',true);
+                 
                  legenditems.each(function(d){
+                     //Give the total number of features in this layer
+                     d3.select(this).selectAll('.numfeats')
+                       .html(function(d){
+                           if (d.data().features){
+                               return 'Totaal: ' + d.data().features.length; 
+                           }
+                           else return null;
+                      });
+                      
+                      //Get the different types
+                      var types = d.legenditems();
+                      var items = d3.select(this).selectAll('.styles').data(types);
+                      items.enter()
+                        .append('div')
+                        .classed('styles',true)
+                        .style('background-color',function(d){return d.fill;})
+                        .style('padding','2px')
+                        .html(function(d){
+                            return d.key + ' (' + d.count + ')';
+                        });
+                      items.exit().remove();
+                        
                  });
                  legenditems.exit().remove();
         }
     }
     /** Get current zoomlevel **/
-    this.getZoomLevel = function(){
+    var getZoomLevel = function(){
         var zoomleven = 0;
-        if (self.maptype == 'Leaflet') {
-            zoomlevel = self.map.getZoom();
+        if (maptype == 'Leaflet') {
+            zoomlevel = map.getZoom();
         }
         return zoomlevel;
     }
@@ -62,15 +90,15 @@ window.d3l = function(config){
     this.layers = function(layername, config){
         switch(arguments.length) {
             case 0:
-                return this._layers;
+                return _layers;
             default:
-                $.each(this._layers,function(i,layer){
+                $.each(_layers,function(i,layer){
                     if (layer.layername == layername){
                         return layer;  
                     }
                 });
                 var layer = new d3layer(layername, config);
-                this._layers.push(layer);
+                _layers.push(layer);
                 return layer;
         }
     }
@@ -81,26 +109,29 @@ window.d3l = function(config){
 		var _this = this;        
 		var layername = layername;
 		f.layername = layername;
-		this.data;
-		this.type = config.type || "path";
-		
-		this.style = config.style;
-		this.onClick = config.onClick;
-		this.onMouseover = config.onMouseover;
-		this.mouseoverContent = config.mouseoverContent;
-		this.classfield = config.classfield;
-		this.satellites = config.satellites || false;
-		this.eachFunctions = config.eachFunctions || false;	
-		this.coolcircles = config.coolcircles || false;
-		this.labels = config.labels || false;
-		this.labelconfig = config.labelconfig;
-		this.highlight = config.highlight || false;
-		this.scale = config.scale || 'px';
-		this.pointradius = config.pointradius || 5;
-		this.bounds = [[0,0],[1,1]];
+		var data;
+		var type = config.type || "path";
+		var style = config.style;
+		var onClick = config.onClick;
+		var onMouseover = config.onMouseover;
+		var mouseoverContent = config.mouseoverContent;
+		var classfield = config.classfield;
+		var colorfield = config.colorfield;
+		var satellites = config.satellites || false;
+		var eachFunctions = config.eachFunctions || false;	
+		var coolcircles = config.coolcircles || false;
+		var labels = config.labels || false;
+		var labelconfig = config.labelconfig;
+		var legend = config.legend || false;
+		var legendconfig = config.legendconfig;
+		var highlight = config.highlight || false;
+		var scale = config.scale || 'px';
+		var pointradius = config.pointradius || 5;
+		var bounds = [[0,0],[1,1]];
 		var width, height,bottomLeft,topRight;
         var g;
 
+        
         //Adding a tooltip div
         var tooltipdiv = d3.select("body").append("div")   
             .attr("class", "tooltip")               
@@ -114,46 +145,81 @@ window.d3l = function(config){
             
         }
 
+        this.legenditems = function(){
+            var types = [];
+            if (legend){
+                var features = f.data().features;
+                var keyfield = legendconfig.key;
+                if (features){
+                    var nested = 
+                        d3.nest()
+                          .key(function(d) { return d.properties[keyfield]; })
+                          .map(features);
+                    var keys = d3.keys(nested);
+                    $.each(keys,function(i,d){
+                        var fill;
+                        if (typeof(legendconfig.fillcolor) == "function") {
+                            fill = legendconfig.fillcolor({properties: {type: d}});
+                        }
+                        else fill =  legendconfig.fillcolor;
+                        types.push({key: d, fill: fill, count: nested[d].length});
+                    });
+                }
+            }
+            /*
+            //Types should by like:
+            var example = {
+                name: "typename",
+                numfeats: nested[key].length,
+                style: {
+                    fill: "color",
+                    stroke: "color"
+                }
+            }
+            */
+            return types;
+        }
+        f.legenditems = this.legenditems;
         
-		if (self.maptype == 'OpenLayers'){//Getting the correct OpenLayers SVG. 
+		if (maptype == 'OpenLayers'){//Getting the correct OpenLayers SVG. 
 			g = self.svg.append("g");
 		}
-		else if (self.maptype == 'Leaflet') { //Leaflet does it easier
+		else if (maptype == 'Leaflet') { //Leaflet does it easier
 			g = self.svg.append("g").attr("class", "leaflet-zoom-hide");
 		}
-		else if (self.maptype == 'D3') {
+		else if (maptype == 'D3') {
 		     
 		}
 
 		this.g = g;
 		//In Chrome the transform element is not propagated to the foreignObject
         //Therefore we have to calculate our own offset
-        this.offset = function(x){
+        var offset = function(x){
             var offset = {x:0,y:0}; 
             if (navigator.userAgent.indexOf('Chrome') > -1)
                 if (config.maptype == 'Leaflet'){//only works in leaflet
-                    offset = _this.map.latLngToContainerPoint(new L.latLng(x[1],x[0]));
+                    offset = map.latLngToContainerPoint(new L.latLng(x[1],x[0]));
                     //offset = _this.map.latLngToLayerPoint(new L.LatLng(x[1], x[0])); //Leaflet version
                 }
             return offset;
          }
             
         // Projecting latlon to screen coordinates
-		this.project = function(x) {
-		  if (self.maptype == 'D3') {
+		var project = function(x) {
+		  if (maptype == 'D3') {
 		    var point = projection(x);
 		    return [point[0],point[1]];
 		  }
-		  else if (self.maptype == 'Leaflet'){
-	  	      var point = self.map.latLngToLayerPoint(new L.LatLng(x[1], x[0])); //Leaflet version
+		  else if (maptype == 'Leaflet'){
+	  	      var point = map.latLngToLayerPoint(new L.LatLng(x[1], x[0])); //Leaflet version
 		  	  //var point = _this.map.latLngToContainerPoint(new L.LatLng(x[1], x[0])); //Leaflet version
 		  }
-		  else if (self.maptype == 'OpenLayers'){
+		  else if (maptype == 'OpenLayers'){
 		  	  var loc =  new OpenLayers.LonLat(x[0],x[1]);
 		  	  var fromproj = new OpenLayers.Projection("EPSG:4326");
 		  	  var toproj = new OpenLayers.Projection("EPSG:900913");
 		  	  loc.transform(fromproj, toproj);
-		  	  var point = self.map.getViewPortPxFromLonLat(loc); //OpenLayers version
+		  	  var point = map.getViewPortPxFromLonLat(loc); //OpenLayers version
 		  }
 		  else {
 		  	  console.warn("Error, no correct maptype specified for d3 layer " + layername);
@@ -164,13 +230,13 @@ window.d3l = function(config){
 		
 		
 		var olextentproject = function(x){
-			var point = _this.map.getViewPortPxFromLonLat(new OpenLayers.LonLat(x[0],x[1]));
+			var point = map.getViewPortPxFromLonLat(new OpenLayers.LonLat(x[0],x[1]));
 			return [point.x,point.y];
 		}
 		//TODO move out of core
 		var labelgenerator = function(d){
-		    if (_this.labelconfig.field){
-		        var str = d.properties[_this.labelconfig.field];
+		    if (labelconfig.field){
+		        var str = d.properties[labelconfig.field];
 		        if (str && str.length > 10) 
 		              return str.substr(0,16) + "..."; //Only first 10 chars
 		        else return str;
@@ -179,28 +245,28 @@ window.d3l = function(config){
                 return d.id;
 		}
 		
-		var geoPath = d3.geo.path().projection(this.project);
+		var geoPath = d3.geo.path().projection(project);
 		this.geoPath = geoPath;
 		var click = function(d){
 		    d3.event.stopPropagation();//Prevent the map from firing click event as well
-		    if (_this.onClick)
-		        _this.onClick(d,this);
+		    if (onClick)
+		            onClick(d,this);
 		}
 		
 		var mouseover = function(d){
-		    if (_this.mouseoverContent){
+		    if (mouseoverContent){
                     tooltipdiv.transition()        
                         .duration(200)      
                         .style("opacity", .9);      
-                    tooltipdiv.html(d[_this.mouseoverContent] + "<br/>")  
+                    tooltipdiv.html(d[mouseoverContent] + "<br/>")  
                         .style("left", (d3.event.pageX) + "px")     
                         .style("top", (d3.event.pageY - 28) + "px");
                 }
-		    if (_this.onMouseover)
-		        _this.onMouseover(d,this);
+		    if (onMouseover)
+		        onMouseover(d,this);
 		}
 		var mouseout = function(d){
-		    if (_this.mouseoverContent){
+		    if (mouseoverContent){
 		        tooltipdiv.transition()        
                     .duration(500)      
                     .style("opacity", 0);
@@ -208,12 +274,12 @@ window.d3l = function(config){
 		}
 		
 		//Build up the element
-		this.build = function(d){
+		var build = function(d){
 		  var entity = d3.select(this);
   	      //Point/icon feature
 		  if (d.style && d.style.icon && d.geometry.type == 'Point'){ 
-		      var x = _this.project(d.geometry.coordinates)[0];
-              var y = _this.project(d.geometry.coordinates)[1];
+		      var x = project(d.geometry.coordinates)[0];
+              var y = project(d.geometry.coordinates)[1];
 		      var img = entity.append("image")
 		            .transition().duration(500)
 		            .on("click", click)
@@ -229,18 +295,18 @@ window.d3l = function(config){
 		        .transition().duration(500);
 		  }
 		}
-		
+		var color10 = d3.scale.category10();
 		//A per feature styling method
-		this.styling = function(d){
+		var styling = function(d){
 		  var entity = d3.select(this);
 		  //Point/icon feature
 		  if (d.style && d.style.icon && d.geometry.type == 'Point'){ 
-		      var x = _this.project(d.geometry.coordinates)[0];
-              var y = _this.project(d.geometry.coordinates)[1];
+		      var x = project(d.geometry.coordinates)[0];
+              var y = project(d.geometry.coordinates)[1];
 		      var img = entity.select("image")
                     .attr("xlink:href", function(d){
                             if (d.style.icon) return d.style.icon;
-                            else return "./mapicons/stratego/stratego-flag.svg";
+                            else return "./mapicons/stratego/stratego-flag.svg"; //TODO put normal icon
                     })
                     .classed("nodeimg",true)
                     .attr("width", 32)
@@ -248,38 +314,52 @@ window.d3l = function(config){
                     .attr("x",x-25)
                     .attr("y",y-25)
                     .style('opacity',function(d){ //special case: opacity for icon
-                            return d.style.opacity || _this.style.opacity || 1;
+                            return d.style.opacity || style.opacity || 1;
                     });
              
 		  }
 		  //Path feature
 		  else{
 		    var path = entity.select("path");
-			for (var key in _this.style) { //First check for generic layer style
+			for (var key in style) { //First check for generic layer style
 				path.style(key,function(d){
-					if (d.style && d.style[key])
-						return d.style[key]; //Override with features style if present
- 					else	
-						return _this.style[key]; //Apply generic style
+					if (d.style && d.style[key]){
+				        return d.style[key]; //Override with features style if present
+					}
+ 					else{ //Style can be defined by function...
+ 					    if (typeof(style[key]) == "function") {
+                            var f = style[key];
+                            return  f(d);
+                        }
+                        else {//..or by generic style string
+                            return style[key]; 
+                        }
+                    }
 				});
 			};
 			//Now apply remaining styles of feature (possible doing a bit double work from previous loop)
 			if (d.style) { //If feature has style information
 				for (var key in d.style){ //run through the styles
-					path.style(key,d.style[key]); //and apply them
+				    path.style(key,d.style[key]); //and apply them
 				}
 			}
-		  }
+			//A colorfield can be specified that will 
+			//if (colorfield){
+			//    path.style('fill',function(foo){
+            //        return color10(d.properties[colorfield]);
+            //    });
+            //}
+          }
 		};
 		
 		//A per feature styling method
-		this.textstyling = function(d){ 
-			for (var key in _this.labelconfig.style) { //First check for generic layer style
+		var textstyling = function(d){ 
+			for (var key in labelconfig.style) { //First check for generic layer style
 				d3.select(this).style(key,function(d){
 					if (d.labelconfig && d.labelconfig.style && d.labelconfig.style[key])
 						return d.labelconfig.style[key]; //Override with features style if present
  					else	
-						return _this.labelconfig.style[key]; //Apply generic style
+						return labelconfig.style[key]; //Apply generic style
 				});
 			};
 			//Now apply remaining styles of feature (possible doing a bit double work from previous loop)
@@ -291,20 +371,20 @@ window.d3l = function(config){
 		};
 		
 		//Some path specific styles (point radius, label placement eg.)
-		this.pathStyler = function(d){ 
+		var pathStyler = function(d){ 
 		    if (d.style && d.style.radius)
 		        geoPath.pointRadius(d.style.radius);
-		    else if (_this.style && _this.style.radius)
-		        geoPath.pointRadius(_this.style.radius);
+		    else if (style && style.radius)
+		        geoPath.pointRadius(style.radius);
 		    return geoPath(d);
 		};
 		
 		//Calculating the location of the label, based on settings
-		this.textLocation = function(d){
+		var textLocation = function(d){
 		    var textLocation = geoPath.centroid(d);
 		    var bounds = geoPath.bounds(d);
-		    if (_this.style && _this.style.textlocation){
-		        switch(_this.style.textlocation){
+		    if (style && style.textlocation){
+		        switch(style.textlocation){
 		          case 'ul':
 		            textLocation[0] = bounds[0][0];
 		            textLocation[1] = bounds[0][1];
@@ -323,9 +403,9 @@ window.d3l = function(config){
 		}
 		
 		//The part where new data comes in
-		f.data = function(data){
-		    if (!data){
-		        return _this.data; 
+		f.data = function(newdata){
+		    if (!newdata){
+		        return data || []; 
 		    }
 		    var points = [];
 		    var lines = [];
@@ -333,7 +413,7 @@ window.d3l = function(config){
 		    var collection = {"type":"FeatureCollection","features":[]}; 
 		    //A method to order the objects based on types
 		    //Points on top, then lines, then polygons
-		    $.each(data.features, function(i,d){
+		    $.each(newdata.features, function(i,d){
 		         if (d.geometry.type == 'Point'){
 		             points.push(d);
 		         }
@@ -352,8 +432,8 @@ window.d3l = function(config){
    		    collection.features.push.apply(collection.features,lines);
 		    collection.features.push.apply(collection.features,points);
 		    
-		    _this.data = collection;
-		    _this.bounds = d3.geo.bounds(collection);
+		    data = collection;
+		    bounds = d3.geo.bounds(collection);
             
 			//Create a 'g' element first, in case we need to bind more then 1 elements to a data entry
 			var entities = g.selectAll(".entity")
@@ -367,19 +447,18 @@ window.d3l = function(config){
 			    .classed('entity',true)
                 .attr('id',function(d){
                     return 'entity'+ d.id;
-                })			    
-			    ;
+                });
 
-            newentity.each(_this.build);
+            newentity.each(build);
 			
-			if (_this.labels){
+			if (labels){
 			    var label = newentity.append('g')
 			        .classed('place-label',true);
 			    //On new:	
 				label
 					.append('text')
-					.attr("x",function(d) {return _this.textLocation(d)[0] ;})
-					.attr("y",function(d) {return _this.textLocation(d)[1] ;})
+					.attr("x",function(d) {return textLocation(d)[0] ;})
+					.attr("y",function(d) {return textLocation(d)[1] ;})
 					//.classed("zoomable",true)
 					.attr('text-anchor', 'left')
 					.style('stroke','white')
@@ -388,49 +467,51 @@ window.d3l = function(config){
 					.text(function(d){return labelgenerator(d)});
 				label
 					.append('text')
-					.attr("x",function(d) {return _this.textLocation(d)[0] ;})
-					.attr("y",function(d) {return _this.textLocation(d)[1] ;})
+					.attr("x",function(d) {return textLocation(d)[0] ;})
+					.attr("y",function(d) {return textLocation(d)[1] ;})
 					//.classed("zoomable",true)
 					.attr('text-anchor', 'left')
-					.each(_this.textstyling)
+					.each(textstyling)
 					.text(function(d){return labelgenerator(d)});
 			} //End of new label
 			//Some cool looking effect upon new feature
-			if (_this.coolcircles){
+			if (coolcircles){
 			 var coolcircle = newentity.append('g')
 			        .classed('coolcircle',true);
 			 coolcircle.append("circle")
                   .attr("class", "ring")
-                  .attr("cx",function(d) { return _this.project(d.geometry.coordinates)[0]})
-                  .attr("cy",function(d) { return _this.project(d.geometry.coordinates)[1]})
+                  .attr("cx",function(d) { return project(d.geometry.coordinates)[0]})
+                  .attr("cy",function(d) { return project(d.geometry.coordinates)[1]})
                   .attr("r", 100)
-                  .each(_this.styling)
+                  .each(styling)
                   .style("stroke-width", 3)
                   .style("fill","none")
                 .transition()
                   .ease("linear")
                   .duration(1500)
-                  .each(_this.styling)
+                  .each(styling)
                   .style("stroke-opacity", 1e-6)
                   .style("stroke-width", 1)
                   .style("fill","none")
-                  .attr("cx",function(d) { return _this.project(d.geometry.coordinates)[0]})
-                  .attr("cy",function(d) { return _this.project(d.geometry.coordinates)[1]})
+                  .attr("cx",function(d) { return project(d.geometry.coordinates)[0]})
+                  .attr("cy",function(d) { return project(d.geometry.coordinates)[1]})
                   .attr("r", 6)
                   .remove();
             }
             
             //Add custum functions to each feature
-            if (_this.eachFunctions){
-                _this.eachFunctions.forEach(function(f){
+            if (eachFunctions){
+                eachFunctions.forEach(function(f){
                     newentity.each(function(d,i){
-                        f(d,i,this,_this);//TODO: ugly
+                        f(d,this);
                     });
                 });
+                f.reset();
             }
             
+            
 			//On update
-			entities.each(_this.styling);
+			entities.each(styling);
 			entities.each(function(d,i){
 			    var entity = d3.select(this);
 			    var x = geoPath.centroid(d)[0];
@@ -445,19 +526,18 @@ window.d3l = function(config){
                 }
                 else{
                     entity.select('path') //Only 1 path per entity
-                        .attr("d",_this.pathStyler(d))
+                        .attr("d",pathStyler(d))
                         .style('opacity',0)
                         .transition().duration(500)
-                        .style('opacity',1)
-                        ;
+                        .style('opacity',1);
                 }
 			    
-			    if (_this.labels){
+			    if (labels){
 			        entity.select('.place-label')
                         .selectAll('text')
                         .transition().duration(500)
-                        .attr("x", _this.textLocation(d)[0] )
-                        .attr("y", _this.textLocation(d)[1] )
+                        .attr("x", textLocation(d)[0] )
+                        .attr("y", textLocation(d)[1] )
                         .text(labelgenerator(d));
 			    }
 			});
@@ -468,8 +548,8 @@ window.d3l = function(config){
         
         //Redraw all features
 		f.reset = function(e) {
-			if (self.maptype == 'OpenLayers'){
-                var extent = _this.map.getExtent();
+			if (maptype == 'OpenLayers'){
+                var extent = map.getExtent();
                 bottomLeft = olextentproject([extent.left,extent.bottom]);
                 topRight = olextentproject([extent.right,extent.top]);
                 width = topRight[0] - bottomLeft[0];
@@ -502,31 +582,31 @@ window.d3l = function(config){
                     }
                     else{
                         entity.select('path') //Only 1 path per entity
-                            .attr("d",_this.pathStyler(d))
+                            .attr("d",pathStyler(d));
                     }
                     
-                     if (_this.labels){
+                     if (labels){
                         entity.select('.place-label')
                             .selectAll('text')
-                            .attr("x", _this.textLocation(d)[0] )
-                            .attr("y", _this.textLocation(d)[1] )
+                            .attr("x", textLocation(d)[0] )
+                            .attr("y", textLocation(d)[1] )
                             .text(labelgenerator(d));
                     }
                     entity.select('g.zoomable')
                         .attr("transform", function(d){
                             if (d.geometry.type == 'Point'){
-                                var x = _this.project(d.geometry.coordinates)[0];
-                                var y = _this.project(d.geometry.coordinates)[1];
+                                var x = project(d.geometry.coordinates)[0];
+                                var y = project(d.geometry.coordinates)[1];
                             }
                             else {
-                                var x = _this.geoPath.centroid(d)[0];
-                                var y = _this.geoPath.centroid(d)[1];
+                                var x = geoPath.centroid(d)[0];
+                                var y = geoPath.centroid(d)[1];
                             }
                             return "translate(" + x + "," + y + ")"
                         })
                         .transition().duration(500)
                         .attr('opacity',function(d){
-                                if (d.minzoomlevel && d.minzoomlevel > self.getZoomLevel()){
+                                if (d.minzoomlevel && d.minzoomlevel > getZoomLevel()){
                                     return 0;
                                 }
                                 else return 1;

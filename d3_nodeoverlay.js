@@ -212,7 +212,7 @@ function nodeOverlay(svg,w,h) {
       
       node.selectAll('text').text(function(d){return d.name;});
       node.exit().remove();
-      tmp = force;
+      
       force.start();
       //d3.timer(force.resume);
     }
