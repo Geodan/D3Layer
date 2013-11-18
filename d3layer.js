@@ -36,14 +36,43 @@ window.d3l = function(config){
             case 0:
                 return _legend;
             default:
-                var legenditems = d3.select(config.legendid).selectAll('layer').data(_layers);
-                legenditems.enter()
+                var legenditems = d3.select(config.legendid).selectAll('.layer').data(_layers);
+                var itementer = legenditems.enter()
                     .append('div')
-                    .classed('layer',true)
+                    .classed('layer',true);
+                 itementer.append('span')
                     .html(function(d){
-                        return d.layername;
+                        return '<h3>' + d.layername + '</h3>';
                     });
+                 itementer.append('div')
+                    .classed('numfeats',true)
+                    ;
+                  itementer.append('div')
+                    .classed('styles',true);
+                 
                  legenditems.each(function(d){
+                     //Give the total number of features in this layer
+                     d3.select(this).selectAll('.numfeats')
+                       .html(function(d){
+                           if (d.data().features){
+                               return 'Totaal: ' + d.data().features.length; 
+                           }
+                           else return null;
+                      });
+                      
+                      //Get the different types
+                      var types = d.legenditems();
+                      var items = d3.select(this).selectAll('.styles').data(types);
+                      items.enter()
+                        .append('div')
+                        .classed('styles',true)
+                        .style('background-color',function(d){return d.fill;})
+                        .style('padding','2px')
+                        .html(function(d){
+                            return d.key + ' (' + d.count + ')';
+                        });
+                      items.exit().remove();
+                        
                  });
         }
     }
@@ -86,11 +115,14 @@ window.d3l = function(config){
 		var onMouseover = config.onMouseover;
 		var mouseoverContent = config.mouseoverContent;
 		var classfield = config.classfield;
+		var colorfield = config.colorfield;
 		var satellites = config.satellites || false;
 		var eachFunctions = config.eachFunctions || false;	
 		var coolcircles = config.coolcircles || false;
 		var labels = config.labels || false;
 		var labelconfig = config.labelconfig;
+		var legend = config.legend || false;
+		var legendconfig = config.legendconfig;
 		var highlight = config.highlight || false;
 		var scale = config.scale || 'px';
 		var pointradius = config.pointradius || 5;
@@ -112,6 +144,41 @@ window.d3l = function(config){
             
         }
 
+        this.legenditems = function(){
+            var types = [];
+            if (legend){
+                var features = f.data().features;
+                var keyfield = legendconfig.key;
+                if (features){
+                    var nested = 
+                        d3.nest()
+                          .key(function(d) { return d.properties[keyfield]; })
+                          .map(features);
+                    var keys = d3.keys(nested);
+                    $.each(keys,function(i,d){
+                        var fill;
+                        if (typeof(legendconfig.fillcolor) == "function") {
+                            fill = legendconfig.fillcolor({properties: {type: d}});
+                        }
+                        else fill =  legendconfig.fillcolor;
+                        types.push({key: d, fill: fill, count: nested[d].length});
+                    });
+                }
+            }
+            /*
+            //Types should by like:
+            var example = {
+                name: "typename",
+                numfeats: nested[key].length,
+                style: {
+                    fill: "color",
+                    stroke: "color"
+                }
+            }
+            */
+            return types;
+        }
+        f.legenditems = this.legenditems;
         
 		if (maptype == 'OpenLayers'){//Getting the correct OpenLayers SVG. 
 			g = self.svg.append("g");
@@ -126,7 +193,7 @@ window.d3l = function(config){
 		this.g = g;
 		//In Chrome the transform element is not propagated to the foreignObject
         //Therefore we have to calculate our own offset
-        this.offset = function(x){
+        var offset = function(x){
             var offset = {x:0,y:0}; 
             if (navigator.userAgent.indexOf('Chrome') > -1)
                 if (config.maptype == 'Leaflet'){//only works in leaflet
@@ -225,7 +292,7 @@ window.d3l = function(config){
 		        .on('mouseout',mouseout);
 		  }
 		}
-		
+		var color10 = d3.scale.category10();
 		//A per feature styling method
 		var styling = function(d){
 		  var entity = d3.select(this);
@@ -236,7 +303,7 @@ window.d3l = function(config){
 		      var img = entity.select("image")
                     .attr("xlink:href", function(d){
                             if (d.style.icon) return d.style.icon;
-                            else return "./mapicons/stratego/stratego-flag.svg";
+                            else return "./mapicons/stratego/stratego-flag.svg"; //TODO put normal icon
                     })
                     .classed("nodeimg",true)
                     .attr("width", 32)
@@ -253,19 +320,33 @@ window.d3l = function(config){
 		    var path = entity.select("path");
 			for (var key in style) { //First check for generic layer style
 				path.style(key,function(d){
-					if (d.style && d.style[key])
-						return d.style[key]; //Override with features style if present
- 					else	
-						return style[key]; //Apply generic style
+					if (d.style && d.style[key]){
+				        return d.style[key]; //Override with features style if present
+					}
+ 					else{ //Style can be defined by function...
+ 					    if (typeof(style[key]) == "function") {
+                            var f = style[key];
+                            return  f(d);
+                        }
+                        else {//..or by generic style string
+                            return style[key]; 
+                        }
+                    }
 				});
 			};
 			//Now apply remaining styles of feature (possible doing a bit double work from previous loop)
 			if (d.style) { //If feature has style information
 				for (var key in d.style){ //run through the styles
-					path.style(key,d.style[key]); //and apply them
+				    path.style(key,d.style[key]); //and apply them
 				}
 			}
-		  }
+			//A colorfield can be specified that will 
+			//if (colorfield){
+			//    path.style('fill',function(foo){
+            //        return color10(d.properties[colorfield]);
+            //    });
+            //}
+          }
 		};
 		
 		//A per feature styling method
@@ -321,7 +402,7 @@ window.d3l = function(config){
 		//The part where new data comes in
 		f.data = function(newdata){
 		    if (!newdata){
-		        return data; 
+		        return data || []; 
 		    }
 		    var points = [];
 		    var lines = [];
@@ -445,6 +526,7 @@ window.d3l = function(config){
                     entity.select('path') //Only 1 path per entity
                         .transition().duration(500)
                         .attr("d",pathStyler(d));
+                        
                 }
 			    
 			    if (labels){
