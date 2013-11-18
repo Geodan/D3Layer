@@ -37,7 +37,7 @@ window.d3l = function(config){
             case 0:
                 return _legend;
             default:
-                var legenditems = d3.select(config.legendid).selectAll('layer').data(this._layers);
+                var legenditems = d3.select(config.legendid).selectAll('.layer').data(this._layers);
                 legenditems.enter()
                     .append('div')
                     .classed('layer',true)
@@ -46,6 +46,7 @@ window.d3l = function(config){
                     });
                  legenditems.each(function(d){
                  });
+                 legenditems.exit().remove();
         }
     }
     /** Get current zoomlevel **/
@@ -214,6 +215,7 @@ window.d3l = function(config){
 		      var x = _this.project(d.geometry.coordinates)[0];
               var y = _this.project(d.geometry.coordinates)[1];
 		      var img = entity.append("image")
+		            .transition().duration(500)
 		            .on("click", click)
 		            .on('mouseover',mouseover)
 		            .on('mouseout',mouseout);
@@ -223,7 +225,8 @@ window.d3l = function(config){
 		    var path = entity.append("path")
 		        .on("click", click)
 		        .on('mouseover',mouseover)
-		        .on('mouseout',mouseout);
+		        .on('mouseout',mouseout)
+		        .transition().duration(500);
 		  }
 		}
 		
@@ -337,7 +340,7 @@ window.d3l = function(config){
 		         else if (d.geometry.type == 'LineString'){
 		             lines.push(d);
 		         }
-		         else if (d.geometry.type == 'Polygon'){
+		         else if (d.geometry.type == 'Polygon' ||d.geometry.type == 'MultiPolygon' ){
 		             polygons.push(d);
 		         }
 		         else {
@@ -437,14 +440,16 @@ window.d3l = function(config){
                     var x = x;
                     var y = y;
                     entity.select('image')
-                        .transition().duration(500)
                         .attr("x",x-25)
                         .attr("y",y-25);
                 }
                 else{
                     entity.select('path') //Only 1 path per entity
+                        .attr("d",_this.pathStyler(d))
+                        .style('opacity',0)
                         .transition().duration(500)
-                        .attr("d",_this.pathStyler(d));
+                        .style('opacity',1)
+                        ;
                 }
 			    
 			    if (_this.labels){
@@ -497,7 +502,7 @@ window.d3l = function(config){
                     }
                     else{
                         entity.select('path') //Only 1 path per entity
-                            .attr("d",_this.pathStyler(d));
+                            .attr("d",_this.pathStyler(d))
                     }
                     
                      if (_this.labels){
