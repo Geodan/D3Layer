@@ -1,3 +1,0 @@
-[submodule "externals/d3"]
-	path = externals/d3
-	url = https://github.com/mbostock/d3.git
