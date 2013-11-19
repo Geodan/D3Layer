@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Prisma map</title>
+    <title>Geodan map</title>
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     
     <!-- JQUERY -->
@@ -21,133 +21,13 @@
     
     <!-- CUSTOM--> 
     <script type="text/javascript" src="../d3layer.js"></script>
-    
-    <style>
-        #map { position:absolute; top:0; bottom:0; width:100%;}
-        .leaflet-container {
-            background: white;
-        }
-        body {
-          margin:0; padding:0; 
-		  font:normal 14px/20px 'Source Sans Pro', 'Helvetica', sans-serif;
-		  color: white;
-        }
-        h1,h2 {color: white; margin: 2px;}
-     #map-ui {
-        background: rgba(0,0,0,.65);
-        opacity: 0.65;
-        width:220px;
-        z-index:9;
-        position:absolute;
-        top:20px;
-        left:10px;
-        padding:10px;
-    }
-    #legend-ui {
-        background: rgba(0,0,0,.6);
-        width:220px;
-        z-index:9;
-        position:absolute;
-        bottom:20px;
-        left:10px;
-        padding:10px;
-    }
-     .ctrls{display: block;}
-    .ctrl {
-        display:inline-block;
-        display: relative;
-        width:140px;
-        height:35px;
-        /*float:left;*/
-        font-weight: 400;
-        text-decoration:none;
-        color:#333;      
-        border-left:1px solid #777;
-        border-top:1px solid #777;
-        text-align:center;
-        line-height:35px;
-        background:#cccccc;
-        margin:0;
-        /*box-sizing:border-box;*/
-    }
-    .plusmin {
-        text-decoration:none;
-        width:20px;
-        height:35px;
-        margin-left: 20px;
-    }
-    .hidden {
-        display: none;
-    }
-    .ctrl:hover {
-        background:rgb(240,240,240);
-        color:#47c965;
-    }
-    .ctrl.selected {
-        background:rgb(240,240,240);
-    }
-    
-    .ctrls.lev2 {
-        margin-left: 40px;
-    }
-    .ctrls.lev3 {
-        margin-left: 60px;
-    }
-    
-    div.tooltip {   
-      position: absolute;           
-      text-align: left;           
-      width: auto;                  
-      height: auto;                 
-      padding: 5px;             
-      font: 16px sans-serif;
-      color: #000099;
-      background: lightsteelblue;   
-      border: 0px;      
-      border-radius: 8px;           
-      pointer-events: none;
-      z-index: 1000;
-    }
-    circle {
-        cursor: pointer;
-    }
-   
-    </style>
+    <link rel="stylesheet" href="../d3layer.css" />
     
     <script type="text/javascript">
-    //var d3layers = [];
-    var tmp;    
+    
     $(document).ready(function(){
-        var self = this;
-        /* Set the buttons */
-        var btnlocaties = document.getElementById('btnlocaties');
-        btnlocaties.addEventListener("touchend", togglegemeenten, false);
-        btnlocaties.addEventListener("click", togglegemeenten, false);
-        
-        function togglegemeenten(){
-            if (gemeentelyr.data().features.length > 0){
-                $(this).removeClass('selected');
-                gemeentelyr.data({features:[]});
-                }
-            else {
-                $(this).addClass('selected');
-                gemeentelyr.data(self.gemeentendata);
-            }
-        }
-        
 
-        var tonerlayer = new L.StamenTileLayer("toner");
-        var osmlightUrl = 'http://{s}.tile2.opencyclemap.org/transport/{z}/{x}/{y}.png';
-        var osmlayer = L.tileLayer(osmlightUrl, {
-            attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
-        });		
-        var map = L.map('map',{ 
-            zoomControl:false,
-            layers: [tonerlayer]
-        });
-        this.map = map;
-        // add an OpenStreetMap tile layer
-        
+     
         function redrawMap(){
             layermanager.layers().forEach(function(layer){
              layer.reset();
@@ -155,38 +35,54 @@
             layermanager.legend({legendid:'#legend-ui'});
         }
         
-        //map.addLayer(osmlayer);
-        //map.addLayer(tonerlayer);
-        osmlayer.setOpacity(0.5);
-        tonerlayer.setOpacity(0.3);
+        //Create leaflet map object
+        var map = L.map('map',{zoomControl: false});
         map.setView([52.641921,4.912838], 8);
         map.on('moveend',function(e){
             redrawMap();
 		});
-
-        /* Map */
-        var valueById = d3.map();
-            
-        var quantize = d3.scale.quantize()
-            .domain([0, 400])
-            .range(d3.range(9).map(function(i) { return "q" + i + "-9"; }));
-            
-        var svg = d3.select("#map");
         
+        //Add background layers
+        //Toner layer
+        var tonerlayer = new L.StamenTileLayer("toner");
+        var osmlightUrl = 'http://{s}.tile2.opencyclemap.org/transport/{z}/{x}/{y}.png';
+        var osmLayer = L.tileLayer(osmlightUrl, {
+            attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+        });
+        // Darker themed OSM layer
+		var tileUrl = 'http://a{s}.acetate.geoiq.com/tiles/acetate-hillshading/{z}/{x}/{y}.png';
+		var osmDarkLayer = L.tileLayer(tileUrl, {
+            attribution: 'Background map design by <a href="http://www.stamen.com/">Stamen</a>. Tiles hosted by <a href="http://www.geoiq.com/">GeoIQ</a>. Map data: <a href="http://www.openstreetmap.org/">OpenStreetMap</a> contributors and <a href="http://www.naturalearthdata.org/">Natural Earth Data</a>.',
+            subdomains: '0123',
+            minZoom: 2,
+            maxZoom: 18
+        }).addTo(map);
+        // Dutch AHN layer
+		var ahnUrl = "http://t3.edugis.nl/tiles/tilecache.py?map=maps/edugis/cache/hoogte.map";
+		var ahnLayer = L.tileLayer.wms(ahnUrl, {
+            layers: 'hoogtes',
+            format: 'image/png',
+            transparent: true
+        });
+        osmLayer.setOpacity(0.5);
+        tonerlayer.setOpacity(0.3);
+        
+        
+        //D3 layer part
         var layermanager = new d3l({
             maptype: "Leaflet",
             map: map,
         }); 
-        window.layermanager = layermanager;//For debugging
         
         var color10 = d3.scale.category10();
         var locatiecolor = function(d){
             return color10(d.properties.gemnaam);
         }
+        
         var gemeentelyr = layermanager.layers("Gemeenten",{
             type: "path",
-            labels: true,
             mouseoverContent: "mouseoverhtml",
+            labels: false,
             labelconfig: {
                 field:"gemnaam",
                 style: {
@@ -198,50 +94,48 @@
                 key: "gemnaam",
                 fillcolor: locatiecolor
             },
-            classfield: 'gemnaam',
             style: {
                 stroke: "steelBlue",
                 'stroke-width': '2px',
                 fill: locatiecolor,
-                'stroke-opacity': 0.5,
-                'fill-opacity': 0.2
+                'stroke-opacity': 0.8,
+                'fill-opacity': 0.5
             }
         });
-
-        layermanager.legend({legendid:'#legend-ui'});
         
-        //Relaties on map
-        var width = 800,
-            height = 800;
-        var svg = d3.select("#map").select("svg");
+        //Create controls
+        var baseLayers = {"Open Street Map": osmLayer, "Open Street Map (achtergrond)": osmDarkLayer, "Hoogtekaart": ahnLayer};
+        var overlays = {"Gemeenten": gemeentelyr};
+        L.control.layers(baseLayers, overlays).setPosition("bottomright").addTo(map);
+        L.control.zoom({position: "topright"}).addTo(map);
         
-        //LOADING zorglocaties
+        //LOADING the data
         d3.json('./data/gemeenten.json',function(data){
             data.features.forEach(function(d){
-                d.minzoomlevel = 11;
                 d.mouseoverhtml = "<b>" + d.properties.gemnaam + "</b>"
                     + "<br>Type " + d.properties.landbgb_nm
                     + "<br>Landb. " + d.properties.landbgr_nm
                     + "<br>Prov. " + d.properties.provc_nm
                     ;
-            })
-            self.gemeentendata = data;
-            gemeentelyr.data({features:[]});
+            });
+            layermanager.layers('Gemeenten').data(data);
         });
+        
+       //Load the legend 
+       layermanager.legend({legendid:'#legend-ui'});
+       
+       window.layermanager = layermanager //debug
+       
     });
     </script>
 
 </head>
 <body >
     <div id='map-ui'>
-			<h1>Prisma </h1> <h2>zorg in kaart</h2>
+			<h1>Gemeenten </h1> <h2> in kaart</h2>
 			<h3>door Geodan</h3>
-			<div class='ctrls lev1'>
-				<a class='ctrl' href='#' id='btnlocaties'>Gemeenten</a><br>
-			</div>
 		</div>
 	<div id="legend-ui"></div>
-	<div id="sider"></div>
     <div id="map"></div>
 </body>
 </html>

@@ -92,13 +92,18 @@ window.d3l = function(config){
             case 0:
                 return _layers;
             default:
-                $.each(_layers,function(i,layer){
-                    if (layer.layername == layername){
-                        return layer;  
-                    }
-                });
-                var layer = new d3layer(layername, config);
-                _layers.push(layer);
+                var layer;
+                if (!config){
+                    $.each(_layers,function(i,l){
+                        if (l.layername == layername){
+                            layer = l;  
+                        }
+                    });
+                }
+                else { //New layer
+                    layer = new d3layer(layername, config);
+                    _layers.push(layer);
+                }
                 return layer;
         }
     }
@@ -110,6 +115,7 @@ window.d3l = function(config){
 		var layername = layername;
 		f.layername = layername;
 		var data;
+		var datastore = {features:[]};
 		var type = config.type || "path";
 		var style = config.style;
 		var onClick = config.onClick;
@@ -138,11 +144,13 @@ window.d3l = function(config){
             .style("opacity", 0);
         
         f.onAdd = function(d){
-            //TODO: leaflet methods for turning layer on/off   
+            data = datastore;
+            f.data(data);
         }
         
         f.onRemove = function(d){
-            
+            data = {features:[]};
+            f.data(data);
         }
 
         this.legenditems = function(){
@@ -159,7 +167,7 @@ window.d3l = function(config){
                     $.each(keys,function(i,d){
                         var fill;
                         if (typeof(legendconfig.fillcolor) == "function") {
-                            fill = legendconfig.fillcolor({properties: {type: d}});
+                            fill = legendconfig.fillcolor({properties: {gemnaam: d}});
                         }
                         else fill =  legendconfig.fillcolor;
                         types.push({key: d, fill: fill, count: nested[d].length});
@@ -254,6 +262,13 @@ window.d3l = function(config){
 		}
 		
 		var mouseover = function(d){
+		    if (!d.origopac)
+		        d.origopac = d3.select(this).style('opacity'); 
+		    d3.select(this)
+		        .transition().duration(100)
+		        .style('opacity',d.origopac * 0.2)
+		        ;
+		    
 		    if (mouseoverContent){
                     tooltipdiv.transition()        
                         .duration(200)      
@@ -266,6 +281,10 @@ window.d3l = function(config){
 		        onMouseover(d,this);
 		}
 		var mouseout = function(d){
+		    d3.select(this)
+		        .transition().duration(100)
+		        .style('opacity',d.origopac)
+		        ;
 		    if (mouseoverContent){
 		        tooltipdiv.transition()        
                     .duration(500)      
@@ -407,6 +426,7 @@ window.d3l = function(config){
 		    if (!newdata){
 		        return data || []; 
 		    }
+		    
 		    var points = [];
 		    var lines = [];
 		    var polygons = [];
@@ -433,6 +453,9 @@ window.d3l = function(config){
 		    collection.features.push.apply(collection.features,points);
 		    
 		    data = collection;
+		    //Store data for later use (i.e. turning layer on/off) 
+		    if (data.features.length > 0)
+		        datastore = data;
 		    bounds = d3.geo.bounds(collection);
             
 			//Create a 'g' element first, in case we need to bind more then 1 elements to a data entry

@@ -1,0 +1,88 @@
+        #map { position:absolute; top:0; bottom:0; width:100%;}
+        .leaflet-container {
+            background: white;
+        }
+        body {
+          margin:0; padding:0; 
+		  font:normal 14px/20px 'Source Sans Pro', 'Helvetica', sans-serif;
+		  color: white;
+        }
+        h1,h2 {color: white; margin: 2px;}
+     #map-ui {
+        background: rgba(0,0,0,.65);
+        opacity: 0.65;
+        width:220px;
+        z-index:9;
+        position:absolute;
+        top:20px;
+        left:10px;
+        padding:10px;
+    }
+    #legend-ui {
+        background: rgba(0,0,0,.6);
+        width:220px;
+        z-index:9;
+        position:absolute;
+        bottom:20px;
+        left:10px;
+        padding:10px;
+    }
+     .ctrls{display: block;}
+    .ctrl {
+        display:inline-block;
+        display: relative;
+        width:140px;
+        height:35px;
+        /*float:left;*/
+        font-weight: 400;
+        text-decoration:none;
+        color:#333;      
+        border-left:1px solid #777;
+        border-top:1px solid #777;
+        text-align:center;
+        line-height:35px;
+        background:#cccccc;
+        margin:0;
+        /*box-sizing:border-box;*/
+    }
+    .plusmin {
+        text-decoration:none;
+        width:20px;
+        height:35px;
+        margin-left: 20px;
+    }
+    .hidden {
+        display: none;
+    }
+    .ctrl:hover {
+        background:rgb(240,240,240);
+        color:#47c965;
+    }
+    .ctrl.selected {
+        background:rgb(240,240,240);
+    }
+    
+    .ctrls.lev2 {
+        margin-left: 40px;
+    }
+    .ctrls.lev3 {
+        margin-left: 60px;
+    }
+    
+    div.tooltip {   
+      position: absolute;           
+      text-align: left;           
+      width: auto;                  
+      height: auto;                 
+      padding: 5px;             
+      font: 16px sans-serif;
+      color: #000099;
+      background: lightsteelblue;   
+      border: 0px;      
+      border-radius: 8px;           
+      pointer-events: none;
+      z-index: 1000;
+    }
+    circle {
+        cursor: pointer;
+    }
