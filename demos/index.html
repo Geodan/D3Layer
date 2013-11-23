@@ -11,68 +11,87 @@
 <script src="../externals/three/TerrainLoader.js"></script> 
 <script>
 
-    var width  = window.innerWidth,
-        height = window.innerHeight;
+var width  = window.innerWidth,
+    height = window.innerHeight;
 
-    var scene = new THREE.Scene();
-    scene.fog = new THREE.FogExp2(0xffffff, 0.00007);
+var scene = new THREE.Scene();
+//scene.fog = new THREE.FogExp2(0xffffff, 0.007);
+
+var axes = new THREE.AxisHelper(200);
+scene.add(axes);
+
+var hemiLight = new THREE.HemisphereLight( 0xffffff, 0xffffff, 0.6 );
+hemiLight.color.setHSL( 0.6, 0.1, 0.5 );
+hemiLight.groundColor.setHSL( 0.095, 0.1, 0.5 );
+hemiLight.position.set( 0, 500, 0 );
+scene.add( hemiLight );
+
+var dirLight = new THREE.DirectionalLight( 0xffffff, 1 );
+dirLight.position.set( -1, 0.75, 1 );
+dirLight.position.multiplyScalar( 50);
+dirLight.name = "dirlight";
+// dirLight.shadowCameraVisible = true;
+
+scene.add( dirLight );
+
+dirLight.castShadow = true;
+dirLight.shadowMapWidth = dirLight.shadowMapHeight = 1024*2;
+
+var d = 300;
+
+dirLight.shadowCameraLeft = -d;
+dirLight.shadowCameraRight = d;
+dirLight.shadowCameraTop = d;
+dirLight.shadowCameraBottom = -d;
+
+dirLight.shadowCameraFar = 3500;
+dirLight.shadowBias = -0.0001;
+dirLight.shadowDarkness = 0.35;
+
+var camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 150000);
+camera.position.set(0, 0, 100);
+camera.lookAt(new THREE.Vector3(0,0,0));
+
+var renderer = new THREE.WebGLRenderer({antialias: true});
+renderer.setSize(width, height);
+var projector = new THREE.Projector();
+var controls = new THREE.TrackballControls(camera); 
+
+document.getElementById('webgl').appendChild(renderer.domElement);
+
+var terrainSize = 1000;
+var projection = d3.geo.transverseMercator()
+    .translate([terrainSize / 8, terrainSize / 8])
+    .scale(terrainSize * 1006.4)  
+    //.rotate([-9, 0, 0])
+    .center([4.51, 52.15]);
     
-    var axes = new THREE.AxisHelper(200);
-    scene.add(axes);
+
+
+function initMap(coords){
+    var mylat = coords.latitude;
+    var mylon = coords.longitude;
+    var range = 0.05;
+    var bbox = [mylon - range, mylat - range, mylon + range, mylat + range];
+    projection.center([mylon, mylat]);
     
-    var hemiLight = new THREE.HemisphereLight( 0xffffff, 0xffffff, 0.6 );
-    hemiLight.color.setHSL( 0.6, 0.1, 0.5 );
-    hemiLight.groundColor.setHSL( 0.095, 0.1, 0.5 );
-    hemiLight.position.set( 0, 500, 0 );
-    scene.add( hemiLight );
-
-    var dirLight = new THREE.DirectionalLight( 0xffffff, 1 );
-    dirLight.position.set( -1, 0.75, 1 );
-    dirLight.position.multiplyScalar( 50);
-    dirLight.name = "dirlight";
-    // dirLight.shadowCameraVisible = true;
-
-    scene.add( dirLight );
-
-    dirLight.castShadow = true;
-    dirLight.shadowMapWidth = dirLight.shadowMapHeight = 1024*2;
-
-    var d = 300;
-
-    dirLight.shadowCameraLeft = -d;
-    dirLight.shadowCameraRight = d;
-    dirLight.shadowCameraTop = d;
-    dirLight.shadowCameraBottom = -d;
-
-    dirLight.shadowCameraFar = 3500;
-    dirLight.shadowBias = -0.0001;
-    dirLight.shadowDarkness = 0.35;
-
-    var camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 1500);
-    camera.position.set(0, -50, 50);
-
-    var renderer = new THREE.WebGLRenderer({antialias: true});
-    renderer.setSize(width, height);
-    var projector = new THREE.Projector();
-    var controls = new THREE.TrackballControls(camera); 
-
-    document.getElementById('webgl').appendChild(renderer.domElement);
-    
-    var terrainSize = 1000;
-    var projection = d3.geo.transverseMercator()
-        .translate([terrainSize / 8, terrainSize / 8])
-        .scale(terrainSize * 1006.4)  
-        //.rotate([-9, 0, 0])
-        .center([4.51, 52.15]);
-    
-    var water;    
-    d3.json("./data/waterdeel_vlak.json", function(e, p) {
+    var water;
+    var datasource_water = "/service/geoserver/nl_data/ows?"
+        + "service=WFS&"
+        + "version=1.0.0&"
+        + "request=GetFeature&"
+        + "typeName=nl_data:waterdeel_vlak&"
+        + "maxFeatures=100000&"
+        + "outputFormat=json&"
+        + "srsName=EPSG:4326&"
+        + "bbox=" + bbox.join(",") + ",EPSG:4326";    
+    d3.json(datasource_water, function(e, p) {
         //eval(p.response);
         water = p.features;
         function setupWater() {
-
+    
             var cube = new THREE.Geometry();
-
+    
             for (var i = 0; i < water.length; i++) {
                 //TODO: rewrite _uniq and _map to d3 functions
                 //var shape = new THREE.Shape(_.uniq(_.map(water[i], function(d) { return new THREE.Vector3(d[0], d[1], 100); })));
@@ -83,7 +102,7 @@
                 })));
                 var points = shape.createPointsGeometry();
                 THREE.GeometryUtils.merge(cube, shape.extrude({amount: .01, bevelSegments: 2, steps: 2 , bevelSegments: 0, bevelSize: 0, bevelThickness: 0}));
-
+    
             }
             
             // water = new THREE.Mesh(cube, new THREE.MeshLambertMaterial({color: 0x7ECEFD, wireframe: false, opacity: 1}));
@@ -91,11 +110,22 @@
             // water = new THREE.Mesh(cube, new THREE.MeshLambertMaterial({color: 0xCAEAFD, wireframe: false, opacity: 1}));
             scene.add(water);
         }
-
+    
         setupWater();
         waterDone = true;
     });
-    d3.json("./data/gebouw.json", function(e,p) {
+    
+    
+    var datasource_gebouw = "/service/geoserver/nl_data/ows?"
+    + "service=WFS&"
+    + "version=1.0.0&"
+    + "request=GetFeature&"
+    + "typeName=nl_data:gebouw&"
+    + "maxFeatures=100000&"
+    + "outputFormat=json&"
+    + "srsName=EPSG:4326&"
+    + "bbox=" + bbox.join(",") + ",EPSG:4326";
+    d3.json(datasource_gebouw, function(e,p) {
         //eval(p.response);
         buildings = p.features;
         
@@ -138,31 +168,52 @@
         buildingsDone = true;
         //showMenu();
     })
-    document.addEventListener( 'mousedown', onDocumentMouseDown, false );    
-    render();
+}//end of initmap
+document.addEventListener( 'mousedown', onDocumentMouseDown, false );    
+render();
 
-    function render() {
-        controls.update();    
-        requestAnimationFrame(render);
-        renderer.render(scene, camera);
+function render() {
+    controls.update();    
+    requestAnimationFrame(render);
+    renderer.render(scene, camera);
+}
+
+function onDocumentMouseDown( event ) {
+
+    event.preventDefault();
+
+    var vector = new THREE.Vector3( ( event.clientX / window.innerWidth ) * 2 - 1, - ( event.clientY / window.innerHeight ) * 2 + 1, 0.5 );
+    projector.unprojectVector( vector, camera );
+
+    var raycaster = new THREE.Raycaster( camera.position, vector.sub( camera.position ).normalize() );
+
+    var intersects = raycaster.intersectObjects( scene.children );
+
+    if ( intersects.length > 0 ) {
+        console.log(intersects[ 0 ].object);
+        intersects[0].object.material = new THREE.MeshLambertMaterial({color: 0xff0033, wireframe: false, opacity: 1});
     }
-
-    function onDocumentMouseDown( event ) {
-
-        event.preventDefault();
+}
     
-        var vector = new THREE.Vector3( ( event.clientX / window.innerWidth ) * 2 - 1, - ( event.clientY / window.innerHeight ) * 2 + 1, 0.5 );
-        projector.unprojectVector( vector, camera );
-    
-        var raycaster = new THREE.Raycaster( camera.position, vector.sub( camera.position ).normalize() );
-    
-        var intersects = raycaster.intersectObjects( scene.children );
-    
-        if ( intersects.length > 0 ) {
-            console.log(intersects[ 0 ].object);
-            intersects[0].object.material = new THREE.MeshLambertMaterial({color: 0xff0033, wireframe: false, opacity: 1});
-        }
+function getLocation()
+{
+  if (navigator.geolocation)
+    {
+    navigator.geolocation.getCurrentPosition(showPosition);
     }
+  else{alert("Geolocation is not supported by this browser.");}
+}
+  
+function showPosition(position)
+{
+    var mylat = position.coords.latitude;
+    var mylon = position.coords.longitude;
+    console.log('Got position: ' + mylat + ", " + mylon);
+    var coordinates = [mylon, mylat];
+    initMap(position.coords);
+}  
+getLocation();
+
 </script>
 </body>
 </html>

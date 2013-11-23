@@ -75,29 +75,31 @@
         }); 
         
         var color10 = d3.scale.category20();
-        var locatiecolor = function(d){
-                return color10(d.properties.gemnaam);
+        var agencycolor = function(d){
+                return color10(d.properties.agency_id);
         }
-        
-        var gemeentelyr = layermanager.layers("Gemeenten",{
+        var width = d3.scale.linear().domain([0,100]).range([0.1,4]);
+        var routewidth = function(d){
+            return width(d.properties.trips);
+        }
+        var routeweight = layermanager.layers("Routes",{
             type: "path",
-            mouseoverContent: "mouseoverhtml",
-            labels: true,
+            labels: false,
             labelconfig: {
                 field:"gemnaam",
                 style: {
                     stroke: "#000033"
                     }
             },
-            legend: false,
+            legend: true,
             legendconfig: {
-                key: "gemnaam",
-                fillcolor: locatiecolor
+                key: "agency_id",
+                fillcolor: agencycolor
             },
             style: {
-                stroke: "steelBlue",
-                'stroke-width': '2px',
-                fill: locatiecolor,
+                stroke: agencycolor,
+                'stroke-width': routewidth,
+                fill: "none",
                 'stroke-opacity': 0.8,
                 'fill-opacity': 0.5
             }
@@ -105,20 +107,15 @@
         
         //Create controls
         var baseLayers = {"Open Street Map": osmLayer, "Open Street Map (achtergrond)": osmDarkLayer, "Hoogtekaart": ahnLayer};
-        var overlays = {"Gemeenten": gemeentelyr};
+        var overlays = {"Gemeenten": routeweight};
         L.control.layers(baseLayers, overlays).setPosition("bottomright").addTo(map);
         L.control.zoom({position: "topright"}).addTo(map);
-        
+        var time = '22';
+        var url = '/service/geoserver/research/ows?service=WFS&version=1.0.0&request=GetFeature&typeName=research:routes&outputFormat=json&viewparams=hour:' + time;
         //LOADING the data
-        d3.json('./data/gemeenten.json',function(data){
-            data.features.forEach(function(d){
-                d.mouseoverhtml = "<b>" + d.properties.gemnaam + "</b>"
-                    + "<br>Type " + d.properties.landbgb_nm
-                    + "<br>Landb. " + d.properties.landbgr_nm
-                    + "<br>Prov. " + d.properties.provc_nm
-                    ;
-            });
-            layermanager.layers('Gemeenten').data(data);
+        d3.json(url,function(data){
+            
+            layermanager.layers('Routes').data(data);
         });
         
        //Load the legend 
@@ -132,7 +129,7 @@
 </head>
 <body >
     <div id='map-ui'>
-        <h1>Gemeenten </h1> <h2> in kaart</h2>
+        <h1>OV </h1> <h2> in kaart</h2>
         <h3>door Geodan</h3>
     </div>
 	<div id="legend-ui"></div>
