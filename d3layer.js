@@ -36,7 +36,11 @@ window.d3l = function(config){
             case 0:
                 return _legend;
             default:
-                var legenditems = d3.select(config.legendid).selectAll('.layer').data(_layers);
+                var legendlayers = [];
+                $.each(_layers, function(i,d){
+                    if (d.legend) legendlayers.push(d);
+                });
+                var legenditems = d3.select(config.legendid).selectAll('.layer').data(legendlayers);
                 var itementer = legenditems.enter()
                     .append('div')
                     .classed('layer',true);
@@ -136,6 +140,8 @@ window.d3l = function(config){
 		var bounds = [[0,0],[1,1]];
 		var width, height,bottomLeft,topRight;
         var g;
+        
+        f.legend = legend; //TODO: put in function
 
         
         //Adding a tooltip div
@@ -167,7 +173,10 @@ window.d3l = function(config){
                     $.each(keys,function(i,d){
                         var fill;
                         if (typeof(legendconfig.fillcolor) == "function") {
-                            fill = legendconfig.fillcolor({properties: {gemnaam: d}});
+                            var obj = {};
+                            obj['properties'] = {}; //TODO: not nice code
+                            obj['properties'][keyfield] = d;
+                            fill = legendconfig.fillcolor(obj);
                         }
                         else fill =  legendconfig.fillcolor;
                         types.push({key: d, fill: fill, count: nested[d].length});
